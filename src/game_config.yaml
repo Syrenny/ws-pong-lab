@@ -1,0 +1,10 @@
+paddle_size: 10
+paddle_x_padding: 10
+
+field_size_x: 10
+field_size_y: 10
+
+ball_size: 10
+
+speed_multiplier: 1.1
+max_ball_speed: 1.1
