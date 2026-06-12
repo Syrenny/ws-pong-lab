@@ -1,3 +1,0 @@
-uvicorn: 
-  workers: 1
-  reload: true

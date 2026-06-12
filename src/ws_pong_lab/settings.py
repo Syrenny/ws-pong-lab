@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, TypeVar
 
 import yaml  # type: ignore
 from pydantic import BaseModel
@@ -37,7 +37,10 @@ class Config(BaseModel):
     uvicorn: UvicornConfig
 
 
-def load_from_yaml(file_path: str, model: type[BaseModel]) -> BaseModel:
+BaseModelT = TypeVar("BaseModelT", bound="BaseModel")
+
+
+def load_from_yaml(file_path: str, model: type[BaseModelT]) -> BaseModelT:
     with open(file_path) as f:
         raw = yaml.safe_load(f)
 
@@ -46,5 +49,5 @@ def load_from_yaml(file_path: str, model: type[BaseModel]) -> BaseModel:
 
 runtime = RuntimeSettings()
 
-game_config = load_from_yaml("./game_config.yaml", GameConfig)
-app_config = load_from_yaml(f"./config.{runtime.env}.yaml", Config)
+game_config = load_from_yaml("./config/game_config.yaml", GameConfig)
+app_config = load_from_yaml(f"./config/config.{runtime.env}.yaml", Config)

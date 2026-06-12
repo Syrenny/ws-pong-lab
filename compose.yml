@@ -1,0 +1,59 @@
+services:
+    web:
+        # Build the image from the Dockerfile in the current directory
+        build:
+            context: .
+            target: runtime
+
+        # Host the FastAPI application on port 8000
+        ports:
+            - '8000:8000'
+
+        environment:
+            # Include development dependencies when working locally
+            - ENV=dev
+            - UV_NO_DEV=0
+
+        # Run as root during development so the environment is mutable
+        # Alternatively, you could set `UV_PROJECT_ENVIRONMENT` to a path owned by the non-root user
+        user: root
+
+        develop:
+            # Create a `watch` configuration to update the app
+            # https://docs.docker.com/compose/file-watch/#compose-watch-versus-bind-mounts
+            watch:
+                # Sync the working directory with the `/app` directory in the container
+                - action: sync
+                  path: .
+                  target: /app
+                  # Exclude the project virtual environment — it could be for a
+                  # different platform in the container
+                  ignore:
+                      - .venv/
+
+                # Rebuild the image if dependencies change by checking uv.lock
+                - action: rebuild
+                  path: ./uv.lock
+
+    tests:
+        build:
+            context: .
+            target: test
+        environment:
+            # Include development dependencies when working locally
+            - ENV=dev
+            - UV_NO_DEV=0
+        user: root
+
+        working_dir: /app
+
+        volumes:
+            - .:/app
+            - tests_venv:/app/.venv
+            - uv_cache:/root/.cache/uv
+
+        command: uv run pytest
+
+volumes:
+    tests_venv:
+    uv_cache:
