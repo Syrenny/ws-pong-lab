@@ -1,7 +1,42 @@
 from pathlib import Path
+from typing import TypeVar
 from uuid import UUID
 
+import aiofiles
+from aiofiles.os import remove
+from pydantic import BaseModel
+
 from ws_pong_lab.models import GameState
+
+BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
+
+
+def _ensure_path(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+
+
+async def _asave_model(path: Path, model: BaseModel) -> None:
+    json_data = model.model_dump_json()
+
+    async with aiofiles.open(path, "w", encoding="utf-8") as file:
+        await file.write(json_data)
+
+
+async def _aload_model(path: Path, model_type: type[BaseModelT]) -> BaseModelT | None:
+    try:
+        async with aiofiles.open(path, encoding="utf-8") as file:
+            json_data = await file.read()
+    except FileNotFoundError:
+        return None
+
+    return model_type.model_validate_json(json_data)
+
+
+async def _adelete(path: Path) -> None:
+    try:
+        await remove(path)
+    except FileNotFoundError:
+        return
 
 
 class GameStateRepo:
@@ -14,32 +49,20 @@ class GameStateRepo:
     def _get_game_state_path(self, room_id: UUID) -> Path:
         return self._get_room_path(room_id) / "game_state.json"
 
-    def _ensure_room_path(self, room_id: UUID) -> Path:
-        room_path = self._get_room_path(room_id)
-        room_path.mkdir(parents=True, exist_ok=True)
-
-        return room_path
-
     async def create_or_update(self, game_state: GameState) -> GameState:
-        self._ensure_room_path(game_state.room.id)
-        gs_path = self._get_game_state_path(game_state.room.id)
+        _ensure_path(self._get_room_path(game_state.room.id))
+        path = self._get_game_state_path(game_state.room.id)
 
-        json_data = game_state.model_dump_json()
-        gs_path.write_text(json_data, encoding="utf-8")
+        await _asave_model(path, game_state)
 
         return game_state
 
-    async def get(self, room_id: UUID) -> GameState | None:
-        gs_path = self._get_game_state_path(room_id)
+    async def get_by_id(self, room_id: UUID) -> GameState | None:
+        path = self._get_game_state_path(room_id)
 
-        json_data = gs_path.read_text(encoding="utf-8")
-
-        if not json_data:
-            return None
-
-        return GameState.model_validate_json(json_data)
+        return await _aload_model(path, GameState)
 
     async def delete_by_id(self, room_id: UUID) -> None:
-        gs_path = self._get_game_state_path(room_id)
+        path = self._get_game_state_path(room_id)
 
-        gs_path.unlink(missing_ok=True)
+        await _adelete(path)

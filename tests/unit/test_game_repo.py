@@ -46,7 +46,7 @@ def gs_repo(storage_dir):
 async def test_get_game_repo_contains_fields(gs, gs_repo):
     await gs_repo.create_or_update(gs)
 
-    gs = await gs_repo.get(gs.room.id)
+    gs = await gs_repo.get_by_id(gs.room.id)
 
     assert isinstance(gs.room.id, UUID)
     assert isinstance(gs.room.participants, list)
@@ -66,7 +66,7 @@ async def test_game_state_creates_room_directory(gs, gs_repo, storage_dir):
 
 
 async def test_get_non_existent_game_state(gs_repo):
-    _gs = await gs_repo.get("00000000-0000-0000-0000-000000000000")
+    _gs = await gs_repo.get_by_id("00000000-0000-0000-0000-000000000000")
 
     assert _gs is None
 
@@ -74,20 +74,20 @@ async def test_get_non_existent_game_state(gs_repo):
 async def test_get_after_delete(gs, gs_repo):
     await gs_repo.create_or_update(gs)
 
-    assert gs_repo.get(gs.room.id) is not None
+    assert await gs_repo.get_by_id(gs.room.id) is not None
 
-    assert await gs_repo.delete_by_id(gs.room.id)
+    await gs_repo.delete_by_id(gs.room.id)
 
-    assert gs_repo.get(gs.room.id) is None
+    assert await gs_repo.get_by_id(gs.room.id) is None
 
 
 async def test_after_delete_path_not_exists(gs, gs_repo, storage_dir):
     await gs_repo.create_or_update(gs)
 
-    room_path = storage_dir / str(gs.room.id)
+    game_state_path = storage_dir / str(gs.room.id) / "game_state.json"
 
-    assert room_path.exists()
+    assert game_state_path.exists()
 
     await gs_repo.delete_by_id(gs.room.id)
 
-    assert not room_path.exists()
+    assert not game_state_path.exists()

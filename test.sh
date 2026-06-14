@@ -1,1 +1,1 @@
-docker compose run --rm tests uv run pytest /app/src/tests 
+docker compose run --rm tests uv run pytest /app/tests
