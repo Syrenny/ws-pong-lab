@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
 
@@ -30,11 +31,8 @@ class GameContext:
     Контекст делегирует часть своего поведения текущему объекту Состояния.
     """
 
-    def request1(self):
+    def process_command(self):
         self._state.handle1()
-
-    def request2(self):
-        self._state.handle2()
 
 
 class GameState(ABC):
@@ -62,13 +60,7 @@ class GameState(ABC):
         pass
 
 
-"""
-Конкретные Состояния реализуют различные модели поведения, связанные с
-состоянием Контекста.
-"""
-
-
-class ConcreteStateA(State):
+class ConcreteStateA(GameState):
     def handle1(self) -> None:
         print("ConcreteStateA handles request1.")
         print("ConcreteStateA wants to change the state of the context.")
@@ -78,7 +70,7 @@ class ConcreteStateA(State):
         print("ConcreteStateA handles request2.")
 
 
-class ConcreteStateB(State):
+class ConcreteStateB(GameState):
     def handle1(self) -> None:
         print("ConcreteStateB handles request1.")
 

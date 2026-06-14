@@ -1,8 +1,10 @@
-from typing import Literal, TypeVar
+from typing import Literal
 
 import yaml  # type: ignore
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
+
+from .domain.models import BaseModelT
 
 
 class RuntimeSettings(BaseSettings):
@@ -32,12 +34,9 @@ class GameConfig(BaseModel):
 class Config(BaseModel):
     cors_allow_origins: list[str]
 
-    game: GameSettings
+    game: GameConfig
 
     uvicorn: UvicornConfig
-
-
-BaseModelT = TypeVar("BaseModelT", bound="BaseModel")
 
 
 def load_from_yaml(file_path: str, model: type[BaseModelT]) -> BaseModelT:

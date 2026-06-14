@@ -1,7 +1,15 @@
 from enum import StrEnum
+from typing import TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel
+
+BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
+
+
+class PlayerSide(StrEnum):
+    LEFT = "left"
+    RIGHT = "right"
 
 
 class Paddle(BaseModel):
@@ -13,9 +21,11 @@ class Ball(BaseModel):
     y: int
 
 
-class Field(BaseModel):
-    r_paddle: Paddle
-    l_paddle: Paddle
+class GameField(BaseModel):
+    x: int
+    y: int
+    
+    paddles: dict[PlayerSide, Paddle]
 
     ball: Ball
 
@@ -37,7 +47,9 @@ class Room(BaseModel):
     participants: list[Participant]
 
 
-class GameState(BaseModel):
+class Game(BaseModel):
     room: Room
 
-    field: Field
+    field: GameField
+
+    score: dict[PlayerSide, int]

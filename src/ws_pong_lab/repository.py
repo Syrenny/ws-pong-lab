@@ -1,14 +1,11 @@
 from pathlib import Path
-from typing import TypeVar
 from uuid import UUID
 
 import aiofiles
 from aiofiles.os import remove
 from pydantic import BaseModel
 
-from ws_pong_lab.models import GameState
-
-BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
+from ws_pong_lab.domain.models import BaseModelT, Game
 
 
 def _ensure_path(path: Path) -> None:
@@ -39,7 +36,7 @@ async def _adelete(path: Path) -> None:
         return
 
 
-class GameStateRepo:
+class GameRepo:
     def __init__(self, storage_dir: Path) -> None:
         self.storage_dir = storage_dir
 
@@ -49,7 +46,7 @@ class GameStateRepo:
     def _get_game_state_path(self, room_id: UUID) -> Path:
         return self._get_room_path(room_id) / "game_state.json"
 
-    async def create_or_update(self, game_state: GameState) -> GameState:
+    async def create_or_update(self, game_state: Game) -> Game:
         _ensure_path(self._get_room_path(game_state.room.id))
         path = self._get_game_state_path(game_state.room.id)
 
@@ -57,10 +54,10 @@ class GameStateRepo:
 
         return game_state
 
-    async def get_by_id(self, room_id: UUID) -> GameState | None:
+    async def get_by_id(self, room_id: UUID) -> Game | None:
         path = self._get_game_state_path(room_id)
 
-        return await _aload_model(path, GameState)
+        return await _aload_model(path, Game)
 
     async def delete_by_id(self, room_id: UUID) -> None:
         path = self._get_game_state_path(room_id)
