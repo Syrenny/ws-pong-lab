@@ -17,17 +17,9 @@ from ws_pong_lab.repository import GameRepo
 
 
 @pytest.fixture
-def make_player_id():
-    def factory(nickname: str) -> PlayerId:
-        return PlayerId(nickname=nickname)
-
-    return factory
-
-
-@pytest.fixture
-def make_default_game():
-    player_1 = PlayerId(nickname="player-1")
-    player_2 = PlayerId(nickname="player-2")
+def default_game():
+    player_1 = PlayerId("player-1")
+    player_2 = PlayerId("player-2")
     return Game(
         id=UUID("123e4567-e89b-12d3-a456-426655440000"),
         field=GameField(
@@ -53,15 +45,15 @@ def storage_dir() -> Path:
 
 
 @pytest.fixture
-def gs_repo(storage_dir):
+def game_repo(storage_dir):
     return GameRepo(storage_dir=storage_dir)
 
 
 @pytest.fixture
-def make_game_context(make_default_game):
+def make_game_context(default_game):
     def factory(*, state: GameState, game: Game | None = None):
         if game is None:
-            game = make_default_game()
+            game = default_game()
         return GameContext(game=game, state=state)
 
     return factory

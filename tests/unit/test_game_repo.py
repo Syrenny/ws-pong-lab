@@ -1,57 +1,57 @@
 from uuid import UUID
 
-from ws_pong_lab.domain.models import PlayerSide
+
+async def test_get_game_repo_contains_fields(default_game, game_repo):
+    await game_repo.create_or_update(default_game)
+
+    game = await game_repo.get_by_id(default_game.id)
+
+    participant_1 = game.participants[0]
+    participant_2 = game.participants[1]
+
+    assert isinstance(game.id, UUID)
+    assert isinstance(game.participants, list)
+    assert isinstance(participant_1.id, str)
+    assert isinstance(participant_2.id, str)
+    assert isinstance(participant_1.role, str)
+    assert isinstance(participant_2.role, str)
+    assert isinstance(game.field.ball.x, int)
+    assert isinstance(game.field.ball.y, int)
+    assert isinstance(game.field.paddles[participant_1.id].y, int)
+    assert isinstance(game.field.paddles[participant_2.id].y, int)
+    assert isinstance(game.score[participant_1.id], int)
+    assert isinstance(game.score[participant_2.id], int)
 
 
-async def test_get_game_repo_contains_fields(make_game, gs_repo):
-    gs = make_game()
-    await gs_repo.create_or_update(gs)
-
-    gs = await gs_repo.get_by_id(gs.room.id)
-
-    assert isinstance(gs.room.id, UUID)
-    assert isinstance(gs.room.participants, list)
-    assert isinstance(gs.room.participants[0].nickname, str)
-    assert isinstance(gs.room.participants[0].role, str)
-    assert isinstance(gs.field.ball.x, int)
-    assert isinstance(gs.field.ball.y, int)
-    assert isinstance(gs.field.paddles[PlayerSide.RIGHT].y, int)
-    assert isinstance(gs.field.paddles[PlayerSide.LEFT].y, int)
-    assert isinstance(gs.score[PlayerSide.RIGHT], int)
-    assert isinstance(gs.score[PlayerSide.LEFT], int)
-
-
-async def test_game_state_creates_room_directory(make_game, gs_repo, storage_dir):
-    await gs_repo.create_or_update(make_game())
+async def test_game_state_creates_game_directory(default_game, game_repo, storage_dir):
+    await game_repo.create_or_update(default_game)
 
     assert storage_dir.exists()
 
 
-async def test_get_non_existent_game_state(gs_repo):
-    _gs = await gs_repo.get_by_id("00000000-0000-0000-0000-000000000000")
+async def test_get_non_existent_game_state(game_repo):
+    _game = await game_repo.get_by_id("00000000-0000-0000-0000-000000000000")
 
-    assert _gs is None
-
-
-async def test_get_after_delete(make_game, gs_repo):
-    gs = make_game()
-    await gs_repo.create_or_update(gs)
-
-    assert await gs_repo.get_by_id(gs.room.id) is not None
-
-    await gs_repo.delete_by_id(gs.room.id)
-
-    assert await gs_repo.get_by_id(gs.room.id) is None
+    assert _game is None
 
 
-async def test_after_delete_path_not_exists(make_game, gs_repo, storage_dir):
-    gs = make_game()
-    await gs_repo.create_or_update(gs)
+async def test_get_after_delete(default_game, game_repo):
+    await game_repo.create_or_update(default_game)
 
-    game_state_path = storage_dir / str(gs.room.id) / "game_state.json"
+    assert await game_repo.get_by_id(default_game.id) is not None
+
+    await game_repo.delete_by_id(default_game.id)
+
+    assert await game_repo.get_by_id(default_game.id) is None
+
+
+async def test_after_delete_path_not_exists(default_game, game_repo, storage_dir):
+    await game_repo.create_or_update(default_game)
+
+    game_state_path = storage_dir / str(default_game.id) / "game.json"
 
     assert game_state_path.exists()
 
-    await gs_repo.delete_by_id(gs.room.id)
+    await game_repo.delete_by_id(default_game.id)
 
     assert not game_state_path.exists()

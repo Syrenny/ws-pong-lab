@@ -1,11 +1,11 @@
-from dataclasses import dataclass
 from enum import StrEnum
-from typing import TypeVar
+from typing import NewType, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
+PlayerId = NewType("PlayerId", str)
 
 
 class Paddle(BaseModel):
@@ -20,11 +20,6 @@ class Ball(BaseModel):
 class PlayerRole(StrEnum):
     PLAYER = "player"
     SPECTATOR = "spectator"
-
-
-@dataclass(frozen=True)
-class PlayerId:
-    nickname: str
 
 
 class GameField(BaseModel):

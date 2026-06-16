@@ -8,7 +8,7 @@ from .domain.models import BaseModelT
 
 
 class RuntimeSettings(BaseSettings):
-    env: Literal["dev", "prod"]
+    env: Literal["dev", "prod"] = "dev"
 
 
 class UvicornConfig(BaseModel):
