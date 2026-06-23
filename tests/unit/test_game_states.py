@@ -1,8 +1,9 @@
 import pytest
 
+from ws_pong_lab.domain.errors import GameCommandNotAllowedError
 from ws_pong_lab.domain.game import (
     FinishedState,
-    GameCommandNotAllowed,
+    GameStateId,
     InProgressState,
     WaitingState,
 )
@@ -14,18 +15,18 @@ class TestWaitingState:
 
         ctx.start_game()
 
-        assert isinstance(ctx.state, InProgressState)
+        assert ctx.game.state == GameStateId.IN_PROGRESS
 
     def test_paddles_moves(self, make_game_context):
         ctx = make_game_context(state=WaitingState())
 
-        with pytest.raises(GameCommandNotAllowed):
+        with pytest.raises(GameCommandNotAllowedError):
             ctx.start_game()
 
     def reset_game(self, make_game_context):
         ctx = make_game_context(state=WaitingState())
 
-        with pytest.raises(GameCommandNotAllowed):
+        with pytest.raises(GameCommandNotAllowedError):
             ctx.reset_game()
 
 
@@ -33,7 +34,7 @@ class TestInProgressState:
     def test_start_game(self, make_game_context):
         ctx = make_game_context(state=InProgressState())
 
-        with pytest.raises(GameCommandNotAllowed):
+        with pytest.raises(GameCommandNotAllowedError):
             ctx.start_game()
 
     @pytest.mark.parametrize(
@@ -57,7 +58,7 @@ class TestInProgressState:
     def reset_game(self, make_game_context):
         ctx = make_game_context(state=InProgressState())
 
-        with pytest.raises(GameCommandNotAllowed):
+        with pytest.raises(GameCommandNotAllowedError):
             ctx.reset_game()
 
 
@@ -65,13 +66,13 @@ class TestFinishedState:
     def test_start_game(self, make_game_context):
         ctx = make_game_context(state=FinishedState())
 
-        with pytest.raises(GameCommandNotAllowed):
+        with pytest.raises(GameCommandNotAllowedError):
             ctx.start_game()
 
     def test_paddle_moves(self, make_game_context):
         ctx = make_game_context(state=FinishedState())
 
-        with pytest.raises(GameCommandNotAllowed):
+        with pytest.raises(GameCommandNotAllowedError):
             ctx.move_paddle(ctx.game.participants[0].id, 1)
 
     def reset_game(self, make_game_context):
@@ -79,4 +80,5 @@ class TestFinishedState:
 
         ctx.reset_game()
 
+        assert ctx.game.state == GameStateId.WAITING
         assert isinstance(ctx.state, WaitingState)
