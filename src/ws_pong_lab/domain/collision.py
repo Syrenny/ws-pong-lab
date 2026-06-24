@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import isclose
+from math import inf, isclose
 
 from ws_pong_lab.domain.models import Direction
 
@@ -50,6 +50,41 @@ def calculate_axis_collision_t(
     return (target - initial) / velocity
 
 
+def calculate_axis_enter_exit_t(
+    *,
+    initial: float,
+    velocity: float,
+    min_value: float,
+    max_value: float,
+) -> tuple[float, float] | None:
+    if isclose(velocity, 0.0, rel_tol=1e-9, abs_tol=1e-12):
+        if min_value <= initial <= max_value:
+            return -inf, inf
+
+        return None
+
+    t1 = (min_value - initial) / velocity
+    t2 = (max_value - initial) / velocity
+
+    return min(t1, t2), max(t1, t2)
+
+
+def intersect_ranges(
+    a: tuple[float, float], b: tuple[float, float]
+) -> tuple[float, float] | None:
+    if a[1] < a[0] or b[1] < b[0]:
+        raise ValueError(f"Ranges must be sorted, got a={str(a)} b={str(b)}")
+
+    start = max(a[0], b[0])
+
+    end = min(a[1], b[1])
+
+    if start <= end:
+        return (start, end)
+
+    return None
+
+
 def calculate_ball_paddle_collision(
     ball_radius: int,
     ball_xy: tuple[float, float],
@@ -57,7 +92,92 @@ def calculate_ball_paddle_collision(
     paddle_xy: tuple[float, float],
     paddle_wh: tuple[int, int],
 ) -> Collision | None:
-    return NotImplemented
+    left_extended_x = paddle_xy[0] - ball_radius
+    right_extended_x = paddle_xy[0] + paddle_wh[0] + ball_radius
+
+    x_enter_exit_t = calculate_axis_enter_exit_t(
+        initial=ball_xy[0],
+        velocity=ball_vx_vy[0],
+        min_value=left_extended_x,
+        max_value=right_extended_x,
+    )
+
+    if x_enter_exit_t is None:
+        return None
+
+    top_extended_y = paddle_xy[1] - ball_radius
+    bottom_extended_y = paddle_xy[1] + paddle_wh[1] + ball_radius
+
+    y_enter_exit_t = calculate_axis_enter_exit_t(
+        initial=ball_xy[1],
+        velocity=ball_vx_vy[1],
+        min_value=top_extended_y,
+        max_value=bottom_extended_y,
+    )
+
+    if y_enter_exit_t is None:
+        return None
+
+    intersection = intersect_ranges(x_enter_exit_t, y_enter_exit_t)
+
+    if intersection is None:
+        return None
+
+    t = intersection[0]
+
+    x, y = ball_xy[0] + ball_vx_vy[0] * t, ball_xy[1] + ball_vx_vy[1] * t
+
+    return Collision(x=x, y=y, t=t)
+
+
+def _calculate_horizontal_wall_collision(
+    *,
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    wall_y: float,
+    min_x: float,
+    max_x: float,
+) -> Collision | None:
+    t = calculate_axis_collision_t(
+        initial=ball_xy[1],
+        target=wall_y,
+        velocity=ball_vx_vy[1],
+    )
+
+    if t is None:
+        return None
+
+    x = ball_xy[0] + ball_vx_vy[0] * t
+
+    if not min_x <= x <= max_x:
+        return None
+
+    return Collision(x=x, y=wall_y, t=t)
+
+
+def _calculate_vertical_wall_collision(
+    *,
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    wall_x: float,
+    min_y: float,
+    max_y: float,
+) -> Collision | None:
+    t = calculate_axis_collision_t(
+        initial=ball_xy[0],
+        target=wall_x,
+        velocity=ball_vx_vy[0],
+    )
+
+    if t is None:
+        return None
+
+    y = ball_xy[1] + ball_vx_vy[1] * t
+
+    if not min_y <= y <= max_y:
+        return None
+
+    return Collision(x=wall_x, y=y, t=t)
 
 
 def calculate_ball_field_collision(
@@ -66,4 +186,51 @@ def calculate_ball_field_collision(
     ball_vx_vy: tuple[float, float],
     field_wh: tuple[int, int],
 ) -> Collision | None:
-    return NotImplemented
+    field_width, field_height = field_wh
+
+    min_x = ball_radius
+    max_x = field_width - ball_radius
+    min_y = ball_radius
+    max_y = field_height - ball_radius
+
+    collisions = [
+        _calculate_horizontal_wall_collision(
+            ball_xy=ball_xy,
+            ball_vx_vy=ball_vx_vy,
+            wall_y=min_y,
+            min_x=min_x,
+            max_x=max_x,
+        ),
+        _calculate_horizontal_wall_collision(
+            ball_xy=ball_xy,
+            ball_vx_vy=ball_vx_vy,
+            wall_y=max_y,
+            min_x=min_x,
+            max_x=max_x,
+        ),
+        _calculate_vertical_wall_collision(
+            ball_xy=ball_xy,
+            ball_vx_vy=ball_vx_vy,
+            wall_x=min_x,
+            min_y=min_y,
+            max_y=max_y,
+        ),
+        _calculate_vertical_wall_collision(
+            ball_xy=ball_xy,
+            ball_vx_vy=ball_vx_vy,
+            wall_x=max_x,
+            min_y=min_y,
+            max_y=max_y,
+        ),
+    ]
+
+    valid_collisions = [
+        collision
+        for collision in collisions
+        if collision is not None and collision.t >= 0
+    ]
+
+    if not valid_collisions:
+        return None
+
+    return min(valid_collisions, key=lambda collision: collision.t)

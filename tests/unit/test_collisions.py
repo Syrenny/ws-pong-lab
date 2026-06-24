@@ -6,6 +6,7 @@ from ws_pong_lab.domain.collision import (
     calculate_ball_field_collision,
     calculate_ball_paddle_collision,
     calculate_next_paddle_y,
+    intersect_ranges,
 )
 from ws_pong_lab.domain.models import Direction
 
@@ -254,7 +255,7 @@ def _paddle_collision_case(
             ball_xy=(0, 5),
             ball_vx_vy=(8, 0),
             paddle_xy=(10, 0),
-            expected=None,
+            expected=Collision(t=1.125, x=9, y=5),
             id="does-not-reach-expanded-rect",
         ),
         _paddle_collision_case(
@@ -322,14 +323,14 @@ def _field_collision_case(
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(1, 0),
-            expected=None,
-            id="no-collision-horizontal",
+            expected=Collision(x=99, y=25.0, t=49.0),
+            id="collision-horizontal",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, 1),
-            expected=None,
-            id="no-collision-vertical",
+            expected=Collision(x=50, y=49, t=24),
+            id="collision-vertical",
         ),
         _field_collision_case(
             ball_xy=(50, 2),
@@ -436,26 +437,26 @@ def _field_collision_case(
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(10, 0),
-            expected=None,
-            id="does-not-reach-right",
+            expected=Collision(x=99, y=25, t=4.9),
+            id="reaches-right",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(-10, 0),
-            expected=None,
-            id="does-not-reach-left",
+            expected=Collision(x=1, y=25, t=4.9),
+            id="reaches-left",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, 10),
-            expected=None,
-            id="does-not-reach-bottom",
+            expected=Collision(x=50, y=49, t=2.4),
+            id="reaches-bottom",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, -10),
-            expected=None,
-            id="does-not-reach-top",
+            expected=Collision(x=50, y=1, t=2.4),
+            id="reaches-top",
         ),
     ],
 )
@@ -470,3 +471,61 @@ def test_calculate_ball_field_collision(
     )
 
     _assert_collision_equal(collision, expected)
+
+
+def _intersect_range_case(
+    *,
+    a: tuple[float, float],
+    b: tuple[float, float],
+    id: str,
+    expected: tuple[float, float] | None = None,
+    raises: type[Exception] | None = None,
+):
+    return pytest.param(a, b, raises, expected, id=id)
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "raises", "expected"),
+    [
+        _intersect_range_case(
+            a=(0, 5), b=(5, 10), expected=(5, 5), id="intersects_at_point"
+        ),
+        _intersect_range_case(
+            a=(0, 5), b=(3, 10), expected=(3, 5), id="intersects_range_of_3"
+        ),
+        _intersect_range_case(
+            a=(0, 5), b=(5, 0), raises=ValueError, id="unsorted_b_raises"
+        ),
+        _intersect_range_case(
+            a=(5, 0), b=(0, 5), raises=ValueError, id="unsorted_a_raises"
+        ),
+        _intersect_range_case(
+            a=(5, 0), b=(5, 0), raises=ValueError, id="unsorted_both_raises"
+        ),
+        _intersect_range_case(
+            a=(5, 10), b=(0, 5), expected=(5, 5), id="intersects_at_point_a_is_right"
+        ),
+        _intersect_range_case(
+            a=(3, 10), b=(0, 5), expected=(3, 5), id="intersects_range_of_3_a_is_right"
+        ),
+        _intersect_range_case(
+            a=(3, 10), b=(3, 7), expected=(3, 7), id="a_in_b_at_start"
+        ),
+        _intersect_range_case(a=(3, 10), b=(5, 7), expected=(5, 7), id="a_in_b_inside"),
+        _intersect_range_case(
+            a=(3, 10), b=(5, 10), expected=(5, 10), id="a_in_b_right"
+        ),
+        _intersect_range_case(
+            a=(3, 10), b=(11, 12), expected=None, id="no_intersection"
+        ),
+        _intersect_range_case(
+            a=(10, 15), b=(0, 1), expected=None, id="no_intersection_a_right"
+        ),
+    ],
+)
+def test_intersect_ranges(a, b, raises, expected):
+    if raises is not None:
+        with pytest.raises(raises):
+            intersect_ranges(a, b)
+    else:
+        assert intersect_ranges(a, b) == expected
