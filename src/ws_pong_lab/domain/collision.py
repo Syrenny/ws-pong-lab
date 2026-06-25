@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from math import inf, isclose
+from enum import StrEnum
+from math import cos, hypot, inf, isclose, radians, sin
 
 from ws_pong_lab.domain.models import Direction
 
@@ -9,6 +10,19 @@ class Collision:
     x: float
     y: float
     t: float
+
+
+class WallSide(StrEnum):
+    LEFT = "left"
+    TOP = "top"
+    RIGHT = "right"
+    BOTTOM = "bottom"
+
+
+@dataclass(frozen=True)
+class WallCollision:
+    collision: Collision
+    side: WallSide
 
 
 def _clamp(value: float, min_value: float, max_value: float) -> float:
@@ -180,12 +194,12 @@ def _calculate_vertical_wall_collision(
     return Collision(x=wall_x, y=y, t=t)
 
 
-def calculate_ball_field_collision(
+def calculate_ball_vertical_wall_collision(
     ball_radius: int,
     ball_xy: tuple[float, float],
     ball_vx_vy: tuple[float, float],
     field_wh: tuple[int, int],
-) -> Collision | None:
+) -> WallCollision | None:
     field_width, field_height = field_wh
 
     min_x = ball_radius
@@ -194,20 +208,6 @@ def calculate_ball_field_collision(
     max_y = field_height - ball_radius
 
     collisions = [
-        _calculate_horizontal_wall_collision(
-            ball_xy=ball_xy,
-            ball_vx_vy=ball_vx_vy,
-            wall_y=min_y,
-            min_x=min_x,
-            max_x=max_x,
-        ),
-        _calculate_horizontal_wall_collision(
-            ball_xy=ball_xy,
-            ball_vx_vy=ball_vx_vy,
-            wall_y=max_y,
-            min_x=min_x,
-            max_x=max_x,
-        ),
         _calculate_vertical_wall_collision(
             ball_xy=ball_xy,
             ball_vx_vy=ball_vx_vy,
@@ -233,4 +233,101 @@ def calculate_ball_field_collision(
     if not valid_collisions:
         return None
 
-    return min(valid_collisions, key=lambda collision: collision.t)
+    collision = min(valid_collisions, key=lambda collision: collision.t)
+    side = WallSide.LEFT if collision.x == min_x else WallSide.RIGHT
+
+    return WallCollision(collision=collision, side=side)
+
+
+def calculate_ball_horizontal_wall_collision(
+    ball_radius: int,
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    field_wh: tuple[int, int],
+) -> WallCollision | None:
+    field_width, field_height = field_wh
+
+    min_x = ball_radius
+    max_x = field_width - ball_radius
+    min_y = ball_radius
+    max_y = field_height - ball_radius
+
+    collisions = [
+        _calculate_horizontal_wall_collision(
+            ball_xy=ball_xy,
+            ball_vx_vy=ball_vx_vy,
+            wall_y=min_y,
+            min_x=min_x,
+            max_x=max_x,
+        ),
+        _calculate_horizontal_wall_collision(
+            ball_xy=ball_xy,
+            ball_vx_vy=ball_vx_vy,
+            wall_y=max_y,
+            min_x=min_x,
+            max_x=max_x,
+        ),
+    ]
+
+    valid_collisions = [
+        collision
+        for collision in collisions
+        if collision is not None and collision.t >= 0
+    ]
+
+    if not valid_collisions:
+        return None
+
+    collision = min(valid_collisions, key=lambda collision: collision.t)
+    side = WallSide.TOP if collision.y == min_y else WallSide.BOTTOM
+
+    return WallCollision(collision=collision, side=side)
+
+
+def calculate_ball_speed_after_paddle_collision(
+    *,
+    collision_y: float,
+    ball_vx_vy: tuple[float, float],
+    paddle_y: float,
+    paddle_height: float,
+) -> tuple[float, float]:
+    max_angle = radians(60)
+
+    vx, vy = ball_vx_vy
+    speed = hypot(vx, vy)
+
+    paddle_center_y = paddle_y + paddle_height / 2
+    offset = collision_y - paddle_center_y
+    normalized = _clamp(offset / (paddle_height / 2), -1.0, 1.0)
+
+    angle = normalized * max_angle
+
+    direction_x = -1 if vx > 0 else 1
+
+    return (
+        direction_x * speed * cos(angle),
+        speed * sin(angle),
+    )
+
+
+@dataclass(frozen=True)
+class BallMotion:
+    ball_xy: tuple[float, float]
+    ball_vx_vy: tuple[float, float]
+
+
+def resolve_goal_collision(
+    ball_vx_vy: tuple[float, float],
+    field_wh: tuple[float, float],
+) -> BallMotion:
+    return BallMotion(
+        ball_xy=(field_wh[0] // 2, field_wh[1] // 2),
+        ball_vx_vy=(-ball_vx_vy[0], ball_vx_vy[1]),
+    )
+
+
+def resolve_ball_horizontal_wall_collision(
+    collision_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+) -> tuple[float, float]:
+    return NotImplemented

@@ -1,12 +1,21 @@
+import math
+
 import pytest
 
 from ws_pong_lab.domain.collision import (
+    BallMotion,
     Collision,
+    WallCollision,
+    WallSide,
     calculate_axis_collision_t,
-    calculate_ball_field_collision,
+    calculate_ball_horizontal_wall_collision,
     calculate_ball_paddle_collision,
+    calculate_ball_speed_after_paddle_collision,
+    calculate_ball_vertical_wall_collision,
     calculate_next_paddle_y,
     intersect_ranges,
+    resolve_ball_horizontal_wall_collision,
+    resolve_goal_collision,
 )
 from ws_pong_lab.domain.models import Direction
 
@@ -217,6 +226,18 @@ def _assert_collision_equal(
     assert actual.y == pytest.approx(expected.y)
 
 
+def _assert_wall_collision_equal(
+    actual: WallCollision | None, expected: WallCollision | None
+) -> None:
+    if expected is None:
+        assert actual is None
+        return
+
+    assert actual is not None
+    _assert_collision_equal(actual.collision, expected.collision)
+    assert actual.side == expected.side
+
+
 def _paddle_collision_case(
     *,
     ball_xy: tuple[float, float],
@@ -311,7 +332,7 @@ def _field_collision_case(
     *,
     ball_xy: tuple[float, float],
     ball_vx_vy: tuple[float, float],
-    expected: Collision | None,
+    expected: WallCollision | None,
     id: str,
 ):
     return pytest.param(ball_xy, ball_vx_vy, expected, id=id)
@@ -323,109 +344,131 @@ def _field_collision_case(
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(1, 0),
-            expected=Collision(x=99, y=25.0, t=49.0),
+            expected=WallCollision(
+                collision=Collision(x=99, y=25.0, t=49.0), side=WallSide.RIGHT
+            ),
             id="collision-horizontal",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, 1),
-            expected=Collision(x=50, y=49, t=24),
+            expected=None,
             id="collision-vertical",
         ),
         _field_collision_case(
             ball_xy=(50, 2),
             ball_vx_vy=(0, -1),
-            expected=Collision(t=1.0, x=50, y=1),
+            expected=None,
             id="hits-top",
         ),
         _field_collision_case(
             ball_xy=(50, 48),
             ball_vx_vy=(0, 1),
-            expected=Collision(t=1.0, x=50, y=49),
+            expected=None,
             id="hits-bottom",
         ),
         _field_collision_case(
             ball_xy=(2, 25),
             ball_vx_vy=(-1, 0),
-            expected=Collision(t=1.0, x=1, y=25),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=1, y=25), side=WallSide.LEFT
+            ),
             id="hits-left",
         ),
         _field_collision_case(
             ball_xy=(98, 25),
             ball_vx_vy=(1, 0),
-            expected=Collision(t=1.0, x=99, y=25),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=99, y=25), side=WallSide.RIGHT
+            ),
             id="hits-right",
         ),
         _field_collision_case(
             ball_xy=(50, 1),
             ball_vx_vy=(0, -1),
-            expected=Collision(t=0.0, x=50, y=1),
+            expected=None,
             id="already-at-top",
         ),
         _field_collision_case(
             ball_xy=(50, 49),
             ball_vx_vy=(0, 1),
-            expected=Collision(t=0.0, x=50, y=49),
+            expected=None,
             id="already-at-bottom",
         ),
         _field_collision_case(
             ball_xy=(1, 25),
             ball_vx_vy=(-1, 0),
-            expected=Collision(t=0.0, x=1, y=25),
+            expected=WallCollision(
+                collision=Collision(t=0.0, x=1, y=25), side=WallSide.LEFT
+            ),
             id="already-at-left",
         ),
         _field_collision_case(
             ball_xy=(99, 25),
             ball_vx_vy=(1, 0),
-            expected=Collision(t=0.0, x=99, y=25),
+            expected=WallCollision(
+                collision=Collision(t=0.0, x=99, y=25), side=WallSide.RIGHT
+            ),
             id="already-at-right",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, -30),
-            expected=Collision(t=0.8, x=50, y=1),
+            expected=None,
             id="fast-hit-top",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, 30),
-            expected=Collision(t=0.8, x=50, y=49),
+            expected=None,
             id="fast-hit-bottom",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(-60, 0),
-            expected=Collision(t=49 / 60, x=1, y=25),
+            expected=WallCollision(
+                collision=Collision(t=49 / 60, x=1, y=25), side=WallSide.LEFT
+            ),
             id="fast-hit-left",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(60, 0),
-            expected=Collision(t=49 / 60, x=99, y=25),
+            expected=WallCollision(
+                collision=Collision(t=49 / 60, x=99, y=25), side=WallSide.RIGHT
+            ),
             id="fast-hit-right",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(49, -24),
-            expected=Collision(t=1.0, x=99, y=1),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=99, y=1), side=WallSide.RIGHT
+            ),
             id="hits-top-right-corner",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(-49, -24),
-            expected=Collision(t=1.0, x=1, y=1),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=1, y=1), side=WallSide.LEFT
+            ),
             id="hits-top-left-corner",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(49, 24),
-            expected=Collision(t=1.0, x=99, y=49),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=99, y=49), side=WallSide.RIGHT
+            ),
             id="hits-bottom-right-corner",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(-49, 24),
-            expected=Collision(t=1.0, x=1, y=49),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=1, y=49), side=WallSide.LEFT
+            ),
             id="hits-bottom-left-corner",
         ),
         _field_collision_case(
@@ -437,40 +480,230 @@ def _field_collision_case(
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(10, 0),
-            expected=Collision(x=99, y=25, t=4.9),
+            expected=WallCollision(
+                collision=Collision(x=99, y=25, t=4.9), side=WallSide.RIGHT
+            ),
             id="reaches-right",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(-10, 0),
-            expected=Collision(x=1, y=25, t=4.9),
+            expected=WallCollision(
+                collision=Collision(x=1, y=25, t=4.9), side=WallSide.LEFT
+            ),
             id="reaches-left",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, 10),
-            expected=Collision(x=50, y=49, t=2.4),
+            expected=None,
             id="reaches-bottom",
         ),
         _field_collision_case(
             ball_xy=(50, 25),
             ball_vx_vy=(0, -10),
-            expected=Collision(x=50, y=1, t=2.4),
+            expected=None,
             id="reaches-top",
         ),
     ],
 )
-def test_calculate_ball_field_collision(
-    ball_xy: tuple[float, float], ball_vx_vy: tuple[float, float], expected: Collision
+def test_calculate_ball_vertical_wall_collision(
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    expected: WallCollision,
 ):
-    collision = calculate_ball_field_collision(
+    collision = calculate_ball_vertical_wall_collision(
         ball_radius=1,
         ball_xy=ball_xy,
         ball_vx_vy=ball_vx_vy,
         field_wh=(100, 50),
     )
 
-    _assert_collision_equal(collision, expected)
+    _assert_wall_collision_equal(collision, expected)
+
+
+@pytest.mark.parametrize(
+    ("ball_xy", "ball_vx_vy", "expected"),
+    [
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(1, 0),
+            expected=None,
+            id="collision-horizontal",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, 1),
+            expected=WallCollision(
+                collision=Collision(x=50, y=49, t=24), side=WallSide.BOTTOM
+            ),
+            id="collision-vertical",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 2),
+            ball_vx_vy=(0, -1),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=50, y=1), side=WallSide.TOP
+            ),
+            id="hits-top",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 48),
+            ball_vx_vy=(0, 1),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=50, y=49), side=WallSide.BOTTOM
+            ),
+            id="hits-bottom",
+        ),
+        _field_collision_case(
+            ball_xy=(2, 25),
+            ball_vx_vy=(-1, 0),
+            expected=None,
+            id="hits-left",
+        ),
+        _field_collision_case(
+            ball_xy=(98, 25),
+            ball_vx_vy=(1, 0),
+            expected=None,
+            id="hits-right",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 1),
+            ball_vx_vy=(0, -1),
+            expected=WallCollision(
+                collision=Collision(t=0.0, x=50, y=1), side=WallSide.TOP
+            ),
+            id="already-at-top",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 49),
+            ball_vx_vy=(0, 1),
+            expected=WallCollision(
+                collision=Collision(t=0.0, x=50, y=49), side=WallSide.BOTTOM
+            ),
+            id="already-at-bottom",
+        ),
+        _field_collision_case(
+            ball_xy=(1, 25),
+            ball_vx_vy=(-1, 0),
+            expected=None,
+            id="already-at-left",
+        ),
+        _field_collision_case(
+            ball_xy=(99, 25),
+            ball_vx_vy=(1, 0),
+            expected=None,
+            id="already-at-right",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, -30),
+            expected=WallCollision(
+                collision=Collision(t=0.8, x=50, y=1), side=WallSide.TOP
+            ),
+            id="fast-hit-top",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, 30),
+            expected=WallCollision(
+                collision=Collision(t=0.8, x=50, y=49), side=WallSide.BOTTOM
+            ),
+            id="fast-hit-bottom",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(-60, 0),
+            expected=None,
+            id="fast-hit-left",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(60, 0),
+            expected=None,
+            id="fast-hit-right",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(49, -24),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=99, y=1), side=WallSide.TOP
+            ),
+            id="hits-top-right-corner",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(-49, -24),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=1, y=1), side=WallSide.TOP
+            ),
+            id="hits-top-left-corner",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(49, 24),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=99, y=49), side=WallSide.BOTTOM
+            ),
+            id="hits-bottom-right-corner",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(-49, 24),
+            expected=WallCollision(
+                collision=Collision(t=1.0, x=1, y=49), side=WallSide.BOTTOM
+            ),
+            id="hits-bottom-left-corner",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, 0),
+            expected=None,
+            id="zero-velocity-no-collision",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(10, 0),
+            expected=None,
+            id="reaches-right",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(-10, 0),
+            expected=None,
+            id="reaches-left",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, 10),
+            expected=WallCollision(
+                collision=Collision(x=50, y=49, t=2.4), side=WallSide.BOTTOM
+            ),
+            id="reaches-bottom",
+        ),
+        _field_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, -10),
+            expected=WallCollision(
+                collision=Collision(x=50, y=1, t=2.4), side=WallSide.TOP
+            ),
+            id="reaches-top",
+        ),
+    ],
+)
+def test_calculate_ball_horizontal_wall_collision(
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    expected: WallCollision,
+):
+    collision = calculate_ball_horizontal_wall_collision(
+        ball_radius=1,
+        ball_xy=ball_xy,
+        ball_vx_vy=ball_vx_vy,
+        field_wh=(100, 50),
+    )
+
+    _assert_wall_collision_equal(collision, expected)
 
 
 def _intersect_range_case(
@@ -529,3 +762,142 @@ def test_intersect_ranges(a, b, raises, expected):
             intersect_ranges(a, b)
     else:
         assert intersect_ranges(a, b) == expected
+
+
+def _resolve_goal_collision_case(
+    *,
+    ball_vx_vy: tuple[float, float],
+    expected: BallMotion,
+    id: str,
+):
+    return pytest.param(ball_vx_vy, expected, id=id)
+
+
+@pytest.mark.parametrize(
+    ("ball_vx_vy", "expected"),
+    (
+        _resolve_goal_collision_case(
+            ball_vx_vy=(-10, 0),
+            expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(10, 0)),
+            id="left-goal-resets-to-center-and-serves-right",
+        ),
+        _resolve_goal_collision_case(
+            ball_vx_vy=(10, 0),
+            expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(-10, 0)),
+            id="right-goal-resets-to-center-and-serves-left",
+        ),
+        _resolve_goal_collision_case(
+            ball_vx_vy=(-10, 3),
+            expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(10, 3)),
+            id="left-goal-preserves-vertical-speed",
+        ),
+        _resolve_goal_collision_case(
+            ball_vx_vy=(10, -3),
+            expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(-10, -3)),
+            id="right-goal-preserves-vertical-speed",
+        ),
+    ),
+)
+def test_resolve_goal_collision(
+    ball_vx_vy: tuple[float, float],
+    expected: BallMotion,
+):
+    ball_motion = resolve_goal_collision(
+        ball_vx_vy=ball_vx_vy,
+        field_wh=(100, 50),
+    )
+
+    assert ball_motion.ball_xy[0] == pytest.approx(expected.ball_xy[0])
+    assert ball_motion.ball_xy[1] == pytest.approx(expected.ball_xy[1])
+
+    assert ball_motion.ball_vx_vy[0] == pytest.approx(expected.ball_vx_vy[0])
+    assert ball_motion.ball_vx_vy[1] == pytest.approx(expected.ball_vx_vy[1])
+
+
+def _resolve_ball_horizontal_wall_collision_case(
+    *,
+    collision_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    expected: tuple[float, float],
+    id: str,
+):
+    return pytest.param(collision_xy, ball_vx_vy, expected, id=id)
+
+
+@pytest.mark.parametrize(("collision_xy", "ball_vx_vy", "expected"), ())
+def test_resolve_ball_horizontal_wall_collision(
+    collision_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    expected: tuple[float, float],
+):
+    next_ball_vx_vy = resolve_ball_horizontal_wall_collision(
+        collision_xy=collision_xy,
+        ball_vx_vy=ball_vx_vy,
+    )
+
+    assert next_ball_vx_vy[0] == pytest.approx(expected)
+    assert next_ball_vx_vy[1] == pytest.approx(expected)
+
+
+def _calculate_ball_speed_after_paddle_collision_case(
+    *,
+    collision_y: float,
+    ball_vx_vy: tuple[float, float],
+    expected: tuple[float, float],
+    id: str,
+):
+    return pytest.param(collision_y, ball_vx_vy, expected, id=id)
+
+
+@pytest.mark.parametrize(
+    ("collision_y", "ball_vx_vy", "expected"),
+    (
+        _calculate_ball_speed_after_paddle_collision_case(
+            collision_y=12.5,
+            ball_vx_vy=(-10, 0),
+            expected=(10, 0),
+            id="left-paddle-center-hit-goes-right",
+        ),
+        _calculate_ball_speed_after_paddle_collision_case(
+            collision_y=12.5,
+            ball_vx_vy=(10, 0),
+            expected=(-10, 0),
+            id="right-paddle-center-hit-goes-left",
+        ),
+        _calculate_ball_speed_after_paddle_collision_case(
+            collision_y=10,
+            ball_vx_vy=(-10, 0),
+            expected=(5, -10 * math.sin(math.radians(60))),
+            id="left-paddle-top-edge-hit-goes-up-right",
+        ),
+        _calculate_ball_speed_after_paddle_collision_case(
+            collision_y=15,
+            ball_vx_vy=(-10, 0),
+            expected=(5, 10 * math.sin(math.radians(60))),
+            id="left-paddle-bottom-edge-hit-goes-down-right",
+        ),
+        _calculate_ball_speed_after_paddle_collision_case(
+            collision_y=10,
+            ball_vx_vy=(10, 0),
+            expected=(-5, -10 * math.sin(math.radians(60))),
+            id="right-paddle-top-edge-hit-goes-up-left",
+        ),
+        _calculate_ball_speed_after_paddle_collision_case(
+            collision_y=15,
+            ball_vx_vy=(10, 0),
+            expected=(-5, 10 * math.sin(math.radians(60))),
+            id="right-paddle-bottom-edge-hit-goes-down-left",
+        ),
+    ),
+)
+def test_calculate_ball_speed_after_paddle_collision(
+    collision_y: float,
+    ball_vx_vy: tuple[float, float],
+    expected: tuple[float, float],
+):
+    next_ball_vx_vy = calculate_ball_speed_after_paddle_collision(
+        collision_y=collision_y, ball_vx_vy=ball_vx_vy, paddle_y=10, paddle_height=5
+    )
+
+    assert next_ball_vx_vy[0] == pytest.approx(expected[0])
+    assert next_ball_vx_vy[1] == pytest.approx(expected[1])
