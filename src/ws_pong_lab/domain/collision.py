@@ -316,7 +316,7 @@ class BallMotion:
     ball_vx_vy: tuple[float, float]
 
 
-def resolve_goal_collision(
+def calculate_ball_motion_after_goal(
     ball_vx_vy: tuple[float, float],
     field_wh: tuple[float, float],
 ) -> BallMotion:
@@ -326,8 +326,7 @@ def resolve_goal_collision(
     )
 
 
-def resolve_ball_horizontal_wall_collision(
-    collision_xy: tuple[float, float],
+def calculate_ball_speed_after_horizontal_wall_collision(
     ball_vx_vy: tuple[float, float],
 ) -> tuple[float, float]:
-    return NotImplemented
+    return ball_vx_vy[0], -ball_vx_vy[1]

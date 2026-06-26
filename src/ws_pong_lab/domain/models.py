@@ -28,11 +28,6 @@ class Ball(BaseModel):
     radius: float = Field(gt=0.0)
 
 
-class PlayerRole(StrEnum):
-    PLAYER = "player"
-    SPECTATOR = "spectator"
-
-
 class GameField(BaseModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
@@ -40,9 +35,9 @@ class GameField(BaseModel):
     ball: Ball
 
 
-class Participant(BaseModel):
-    id: PlayerId
-    role: PlayerRole
+class PlayerSide(StrEnum):
+    LEFT = "left"
+    RIGHT = "right"
 
 
 class GameStateId(StrEnum):
@@ -51,9 +46,19 @@ class GameStateId(StrEnum):
     FINISHED = "finished"
 
 
+class GameRules(BaseModel):
+    max_score: int = Field(gt=0)
+
+
 class Game(BaseModel):
     id: UUID
     state: GameStateId
     field: GameField
-    score: dict[PlayerId, int]
-    participants: list[Participant]
+    score: dict[PlayerSide, int] = {PlayerSide.LEFT: 0, PlayerSide.RIGHT: 0}
+    sides: dict[PlayerSide, PlayerId | None] = {
+        PlayerSide.LEFT: None,
+        PlayerSide.RIGHT: None,
+    }
+    spectators: list[PlayerId]
+
+    rules: GameRules

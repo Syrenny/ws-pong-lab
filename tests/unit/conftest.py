@@ -8,11 +8,11 @@ from ws_pong_lab.domain.models import (
     Ball,
     Game,
     GameField,
+    GameRules,
     GameStateId,
     Paddle,
-    Participant,
     PlayerId,
-    PlayerRole,
+    PlayerSide,
 )
 from ws_pong_lab.repository import GameRepo
 
@@ -26,21 +26,20 @@ def default_game() -> Game:
         state=GameStateId.WAITING,
         field=GameField(
             width=100,
-            height=100,
+            height=50,
             paddles={
-                player_1: Paddle(y=50, vy=5, width=5, height=10),
-                player_2: Paddle(y=50, vy=5, width=5, height=10),
+                player_1: Paddle(y=25, vy=2, width=2, height=5),
+                player_2: Paddle(y=25, vy=2, width=2, height=5),
             },
-            ball=Ball(x=50, y=50, radius=5, vx=5, vy=5),
+            ball=Ball(x=50, y=25, radius=2, vx=5, vy=5),
         ),
         score={
-            player_1: 0,
-            player_2: 0,
+            PlayerSide.LEFT: 0,
+            PlayerSide.RIGHT: 0,
         },
-        participants=[
-            Participant(id=player_1, role=PlayerRole.PLAYER),
-            Participant(id=player_2, role=PlayerRole.PLAYER),
-        ],
+        sides={PlayerSide.LEFT: player_1, PlayerSide.RIGHT: player_2},
+        spectators=[],
+        rules=GameRules(max_score=10),
     )
 
 

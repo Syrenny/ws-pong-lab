@@ -9,13 +9,13 @@ from ws_pong_lab.domain.collision import (
     WallSide,
     calculate_axis_collision_t,
     calculate_ball_horizontal_wall_collision,
+    calculate_ball_motion_after_goal,
     calculate_ball_paddle_collision,
+    calculate_ball_speed_after_horizontal_wall_collision,
     calculate_ball_speed_after_paddle_collision,
     calculate_ball_vertical_wall_collision,
     calculate_next_paddle_y,
     intersect_ranges,
-    resolve_ball_horizontal_wall_collision,
-    resolve_goal_collision,
 )
 from ws_pong_lab.domain.models import Direction
 
@@ -764,7 +764,7 @@ def test_intersect_ranges(a, b, raises, expected):
         assert intersect_ranges(a, b) == expected
 
 
-def _resolve_goal_collision_case(
+def _resolve_calculate_ball_motion_after_goal_case(
     *,
     ball_vx_vy: tuple[float, float],
     expected: BallMotion,
@@ -776,33 +776,33 @@ def _resolve_goal_collision_case(
 @pytest.mark.parametrize(
     ("ball_vx_vy", "expected"),
     (
-        _resolve_goal_collision_case(
+        _resolve_calculate_ball_motion_after_goal_case(
             ball_vx_vy=(-10, 0),
             expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(10, 0)),
             id="left-goal-resets-to-center-and-serves-right",
         ),
-        _resolve_goal_collision_case(
+        _resolve_calculate_ball_motion_after_goal_case(
             ball_vx_vy=(10, 0),
             expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(-10, 0)),
             id="right-goal-resets-to-center-and-serves-left",
         ),
-        _resolve_goal_collision_case(
+        _resolve_calculate_ball_motion_after_goal_case(
             ball_vx_vy=(-10, 3),
             expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(10, 3)),
             id="left-goal-preserves-vertical-speed",
         ),
-        _resolve_goal_collision_case(
+        _resolve_calculate_ball_motion_after_goal_case(
             ball_vx_vy=(10, -3),
             expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(-10, -3)),
             id="right-goal-preserves-vertical-speed",
         ),
     ),
 )
-def test_resolve_goal_collision(
+def test_calculate_ball_motion_after_goal(
     ball_vx_vy: tuple[float, float],
     expected: BallMotion,
 ):
-    ball_motion = resolve_goal_collision(
+    ball_motion = calculate_ball_motion_after_goal(
         ball_vx_vy=ball_vx_vy,
         field_wh=(100, 50),
     )
@@ -814,29 +814,59 @@ def test_resolve_goal_collision(
     assert ball_motion.ball_vx_vy[1] == pytest.approx(expected.ball_vx_vy[1])
 
 
-def _resolve_ball_horizontal_wall_collision_case(
+def _calculate_ball_speed_after_horizontal_wall_collision_case(
     *,
-    collision_xy: tuple[float, float],
     ball_vx_vy: tuple[float, float],
     expected: tuple[float, float],
     id: str,
 ):
-    return pytest.param(collision_xy, ball_vx_vy, expected, id=id)
+    return pytest.param(ball_vx_vy, expected, id=id)
 
 
-@pytest.mark.parametrize(("collision_xy", "ball_vx_vy", "expected"), ())
-def test_resolve_ball_horizontal_wall_collision(
-    collision_xy: tuple[float, float],
+@pytest.mark.parametrize(
+    ("ball_vx_vy", "expected"),
+    (
+        _calculate_ball_speed_after_horizontal_wall_collision_case(
+            ball_vx_vy=(10, -5),
+            expected=(10, 5),
+            id="bounces-from-top-wall",
+        ),
+        _calculate_ball_speed_after_horizontal_wall_collision_case(
+            ball_vx_vy=(10, 5),
+            expected=(10, -5),
+            id="bounces-from-bottom-wall",
+        ),
+        _calculate_ball_speed_after_horizontal_wall_collision_case(
+            ball_vx_vy=(-10, -5),
+            expected=(-10, 5),
+            id="preserves-leftward-horizontal-speed",
+        ),
+        _calculate_ball_speed_after_horizontal_wall_collision_case(
+            ball_vx_vy=(-10, 5),
+            expected=(-10, -5),
+            id="preserves-leftward-horizontal-speed-from-bottom",
+        ),
+        _calculate_ball_speed_after_horizontal_wall_collision_case(
+            ball_vx_vy=(0, -5),
+            expected=(0, 5),
+            id="vertical-only-bounce-from-top",
+        ),
+        _calculate_ball_speed_after_horizontal_wall_collision_case(
+            ball_vx_vy=(0, 5),
+            expected=(0, -5),
+            id="vertical-only-bounce-from-bottom",
+        ),
+    ),
+)
+def test_calculate_ball_speed_after_horizontal_wall_collision(
     ball_vx_vy: tuple[float, float],
     expected: tuple[float, float],
 ):
-    next_ball_vx_vy = resolve_ball_horizontal_wall_collision(
-        collision_xy=collision_xy,
+    next_ball_vx_vy = calculate_ball_speed_after_horizontal_wall_collision(
         ball_vx_vy=ball_vx_vy,
     )
 
-    assert next_ball_vx_vy[0] == pytest.approx(expected)
-    assert next_ball_vx_vy[1] == pytest.approx(expected)
+    assert next_ball_vx_vy == pytest.approx(expected)
 
 
 def _calculate_ball_speed_after_paddle_collision_case(
