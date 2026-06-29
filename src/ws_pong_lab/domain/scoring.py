@@ -1,9 +1,6 @@
-from ws_pong_lab.domain.collision import WallSide
-from ws_pong_lab.domain.models import PlayerSide
-
-
-class InvalidScoreError(ValueError):
-    pass
+from .collision import WallSide
+from .errors import InvalidScoreError
+from .models import PlayerSide
 
 
 def award_goal(*, score: tuple[int, int], goal_side: WallSide) -> tuple[int, int]:

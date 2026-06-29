@@ -13,11 +13,16 @@ class Direction(StrEnum):
     DOWN = "down"
 
 
+class PlayerSide(StrEnum):
+    LEFT = "left"
+    RIGHT = "right"
+
+
 class Paddle(BaseModel):
     y: float = Field(gt=0.0)
     vy: float = Field(gt=0.0)
-    width: float = Field(gt=0.0)
-    height: float = Field(gt=0.0)
+    width: int = Field(gt=0.0)
+    height: int = Field(gt=0.0)
 
 
 class Ball(BaseModel):
@@ -25,19 +30,14 @@ class Ball(BaseModel):
     y: float = Field(ge=0.0)
     vx: float
     vy: float
-    radius: float = Field(gt=0.0)
+    radius: int = Field(gt=0)
 
 
 class GameField(BaseModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
-    paddles: dict[PlayerId, Paddle]
+    paddles: dict[PlayerSide, Paddle]
     ball: Ball
-
-
-class PlayerSide(StrEnum):
-    LEFT = "left"
-    RIGHT = "right"
 
 
 class GameStateId(StrEnum):
@@ -49,16 +49,34 @@ class GameStateId(StrEnum):
 class GameRules(BaseModel):
     max_score: int = Field(gt=0)
 
+    target_delta_time: float = Field(gt=0.0)
+
 
 class Game(BaseModel):
     id: UUID
     state: GameStateId
     field: GameField
-    score: dict[PlayerSide, int] = {PlayerSide.LEFT: 0, PlayerSide.RIGHT: 0}
-    sides: dict[PlayerSide, PlayerId | None] = {
-        PlayerSide.LEFT: None,
-        PlayerSide.RIGHT: None,
-    }
+    score: dict[PlayerSide, int] = Field(
+        default_factory=lambda: {PlayerSide.LEFT: 0, PlayerSide.RIGHT: 0}
+    )
+    sides: dict[PlayerSide, PlayerId | None] = Field(
+        default_factory=lambda: {
+            PlayerSide.LEFT: None,
+            PlayerSide.RIGHT: None,
+        }
+    )
     spectators: list[PlayerId]
 
     rules: GameRules
+
+    @property
+    def ball_xy(self) -> tuple[float, float]:
+        return self.field.ball.x, self.field.ball.y
+
+    @property
+    def ball_vx_vy(self) -> tuple[float, float]:
+        return self.field.ball.vx, self.field.ball.vy
+
+    @property
+    def field_wh(self) -> tuple[int, int]:
+        return self.field.width, self.field.height

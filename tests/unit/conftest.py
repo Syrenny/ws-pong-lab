@@ -3,7 +3,6 @@ from uuid import UUID
 
 import pytest
 
-from ws_pong_lab.domain.game import BaseState, GameContext
 from ws_pong_lab.domain.models import (
     Ball,
     Game,
@@ -28,8 +27,8 @@ def default_game() -> Game:
             width=100,
             height=50,
             paddles={
-                player_1: Paddle(y=25, vy=2, width=2, height=5),
-                player_2: Paddle(y=25, vy=2, width=2, height=5),
+                PlayerSide.LEFT: Paddle(y=25, vy=2, width=2, height=5),
+                PlayerSide.RIGHT: Paddle(y=25, vy=2, width=2, height=5),
             },
             ball=Ball(x=50, y=25, radius=2, vx=5, vy=5),
         ),
@@ -39,7 +38,7 @@ def default_game() -> Game:
         },
         sides={PlayerSide.LEFT: player_1, PlayerSide.RIGHT: player_2},
         spectators=[],
-        rules=GameRules(max_score=10),
+        rules=GameRules(max_score=10, target_delta_time=60 / 100),
     )
 
 
@@ -51,11 +50,3 @@ def storage_dir() -> Path:
 @pytest.fixture
 def game_repo(storage_dir):
     return GameRepo(storage_dir=storage_dir)
-
-
-@pytest.fixture
-def make_game_context(default_game):
-    def factory(*, state: BaseState):
-        return GameContext(game=default_game, state=state)
-
-    return factory

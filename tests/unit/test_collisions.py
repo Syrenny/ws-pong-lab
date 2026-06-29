@@ -10,13 +10,16 @@ from ws_pong_lab.domain.collision import (
     calculate_axis_collision_t,
     calculate_ball_horizontal_wall_collision,
     calculate_ball_motion_after_goal,
+    calculate_ball_motion_without_collision,
     calculate_ball_paddle_collision,
     calculate_ball_speed_after_horizontal_wall_collision,
     calculate_ball_speed_after_paddle_collision,
     calculate_ball_vertical_wall_collision,
     calculate_next_paddle_y,
     intersect_ranges,
+    raise_if_out_of_field,
 )
+from ws_pong_lab.domain.errors import BallOutOfFieldError
 from ws_pong_lab.domain.models import Direction
 
 
@@ -764,6 +767,14 @@ def test_intersect_ranges(a, b, raises, expected):
         assert intersect_ranges(a, b) == expected
 
 
+def _assert_ball_motion_equal(actual: BallMotion, expected: BallMotion) -> None:
+    assert actual.ball_xy[0] == pytest.approx(expected.ball_xy[0])
+    assert actual.ball_xy[1] == pytest.approx(expected.ball_xy[1])
+
+    assert actual.ball_vx_vy[0] == pytest.approx(expected.ball_vx_vy[0])
+    assert actual.ball_vx_vy[1] == pytest.approx(expected.ball_vx_vy[1])
+
+
 def _resolve_calculate_ball_motion_after_goal_case(
     *,
     ball_vx_vy: tuple[float, float],
@@ -807,11 +818,7 @@ def test_calculate_ball_motion_after_goal(
         field_wh=(100, 50),
     )
 
-    assert ball_motion.ball_xy[0] == pytest.approx(expected.ball_xy[0])
-    assert ball_motion.ball_xy[1] == pytest.approx(expected.ball_xy[1])
-
-    assert ball_motion.ball_vx_vy[0] == pytest.approx(expected.ball_vx_vy[0])
-    assert ball_motion.ball_vx_vy[1] == pytest.approx(expected.ball_vx_vy[1])
+    _assert_ball_motion_equal(actual=ball_motion, expected=expected)
 
 
 def _calculate_ball_speed_after_horizontal_wall_collision_case(
@@ -931,3 +938,240 @@ def test_calculate_ball_speed_after_paddle_collision(
 
     assert next_ball_vx_vy[0] == pytest.approx(expected[0])
     assert next_ball_vx_vy[1] == pytest.approx(expected[1])
+
+
+def _calculate_ball_motion_without_collision_case(
+    *,
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    delta_time: float,
+    expected: BallMotion,
+    id: str,
+):
+    return pytest.param(ball_xy, ball_vx_vy, delta_time, expected, id=id)
+
+
+@pytest.mark.parametrize(
+    ("ball_xy", "ball_vx_vy", "delta_time", "expected"),
+    (
+        _calculate_ball_motion_without_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(10, 0),
+            delta_time=0.5,
+            expected=BallMotion(ball_xy=(55, 25), ball_vx_vy=(10, 0)),
+            id="moves-right",
+        ),
+        _calculate_ball_motion_without_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(-10, 0),
+            delta_time=0.5,
+            expected=BallMotion(ball_xy=(45, 25), ball_vx_vy=(-10, 0)),
+            id="moves-left",
+        ),
+        _calculate_ball_motion_without_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, 10),
+            delta_time=0.5,
+            expected=BallMotion(ball_xy=(50, 30), ball_vx_vy=(0, 10)),
+            id="moves-down",
+        ),
+        _calculate_ball_motion_without_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(0, -10),
+            delta_time=0.5,
+            expected=BallMotion(ball_xy=(50, 20), ball_vx_vy=(0, -10)),
+            id="moves-up",
+        ),
+        _calculate_ball_motion_without_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(10, -10),
+            delta_time=0.5,
+            expected=BallMotion(ball_xy=(55, 20), ball_vx_vy=(10, -10)),
+            id="moves-diagonally",
+        ),
+        _calculate_ball_motion_without_collision_case(
+            ball_xy=(50, 25),
+            ball_vx_vy=(10, -10),
+            delta_time=0.0,
+            expected=BallMotion(ball_xy=(50, 25), ball_vx_vy=(10, -10)),
+            id="zero-delta-time-keeps-position",
+        ),
+    ),
+)
+def test_calculate_ball_motion_without_collision(
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    delta_time: float,
+    expected: BallMotion,
+) -> None:
+    ball_motion = calculate_ball_motion_without_collision(
+        ball_xy=ball_xy,
+        ball_vx_vy=ball_vx_vy,
+        field_wh=(100, 50),
+        ball_radius=1,
+        delta_time=delta_time,
+    )
+
+    _assert_ball_motion_equal(ball_motion, expected)
+
+
+def _invalid_ball_motion_without_collision_case(
+    *,
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    delta_time: float,
+    raises: type[Exception],
+    id: str,
+):
+    return pytest.param(ball_xy, ball_vx_vy, delta_time, raises, id=id)
+
+
+@pytest.mark.parametrize(
+    ("ball_xy", "ball_vx_vy", "delta_time", "raises"),
+    (
+        _invalid_ball_motion_without_collision_case(
+            ball_xy=(98, 25),
+            ball_vx_vy=(10, 0),
+            delta_time=0.5,
+            raises=BallOutOfFieldError,
+            id="raises-when-moving-beyond-right-field-boundary",
+        ),
+        _invalid_ball_motion_without_collision_case(
+            ball_xy=(2, 25),
+            ball_vx_vy=(-10, 0),
+            delta_time=0.5,
+            raises=BallOutOfFieldError,
+            id="raises-when-moving-beyond-left-field-boundary",
+        ),
+        _invalid_ball_motion_without_collision_case(
+            ball_xy=(50, 48),
+            ball_vx_vy=(0, 10),
+            delta_time=0.5,
+            raises=BallOutOfFieldError,
+            id="raises-when-moving-beyond-bottom-field-boundary",
+        ),
+        _invalid_ball_motion_without_collision_case(
+            ball_xy=(50, 2),
+            ball_vx_vy=(0, -10),
+            delta_time=0.5,
+            raises=BallOutOfFieldError,
+            id="raises-when-moving-beyond-top-field-boundary",
+        ),
+        _invalid_ball_motion_without_collision_case(
+            ball_xy=(98, 48),
+            ball_vx_vy=(10, 10),
+            delta_time=0.5,
+            raises=BallOutOfFieldError,
+            id="raises-when-moving-beyond-corner",
+        ),
+    ),
+)
+def test_calculate_ball_motion_without_collision_raises_when_out_of_field(
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    delta_time: float,
+    raises: type[Exception],
+) -> None:
+    with pytest.raises(raises):
+        calculate_ball_motion_without_collision(
+            ball_xy=ball_xy,
+            ball_vx_vy=ball_vx_vy,
+            field_wh=(100, 50),
+            ball_radius=1,
+            delta_time=delta_time,
+        )
+
+
+def _raise_if_out_of_field_valid_case(
+    *,
+    ball_xy: tuple[float, float],
+    id: str,
+):
+    return pytest.param(ball_xy, id=id)
+
+
+@pytest.mark.parametrize(
+    "ball_xy",
+    (
+        _raise_if_out_of_field_valid_case(
+            ball_xy=(50, 25),
+            id="inside-field",
+        ),
+        _raise_if_out_of_field_valid_case(
+            ball_xy=(1, 25),
+            id="touches-left-boundary",
+        ),
+        _raise_if_out_of_field_valid_case(
+            ball_xy=(99, 25),
+            id="touches-right-boundary",
+        ),
+        _raise_if_out_of_field_valid_case(
+            ball_xy=(50, 1),
+            id="touches-top-boundary",
+        ),
+        _raise_if_out_of_field_valid_case(
+            ball_xy=(50, 49),
+            id="touches-bottom-boundary",
+        ),
+        _raise_if_out_of_field_valid_case(
+            ball_xy=(1, 1),
+            id="touches-top-left-corner",
+        ),
+        _raise_if_out_of_field_valid_case(
+            ball_xy=(99, 49),
+            id="touches-bottom-right-corner",
+        ),
+    ),
+)
+def test_raise_if_out_of_field_does_not_raise(ball_xy: tuple[float, float]) -> None:
+    raise_if_out_of_field(
+        ball_xy=ball_xy,
+        ball_radius=1,
+        field_wh=(100, 50),
+    )
+
+
+def _raise_if_out_of_field_invalid_case(
+    *,
+    ball_xy: tuple[float, float],
+    id: str,
+):
+    return pytest.param(ball_xy, id=id)
+
+
+@pytest.mark.parametrize(
+    "ball_xy",
+    (
+        _raise_if_out_of_field_invalid_case(
+            ball_xy=(0.99, 25),
+            id="outside-left-boundary",
+        ),
+        _raise_if_out_of_field_invalid_case(
+            ball_xy=(99.01, 25),
+            id="outside-right-boundary",
+        ),
+        _raise_if_out_of_field_invalid_case(
+            ball_xy=(50, 0.99),
+            id="outside-top-boundary",
+        ),
+        _raise_if_out_of_field_invalid_case(
+            ball_xy=(50, 49.01),
+            id="outside-bottom-boundary",
+        ),
+        _raise_if_out_of_field_invalid_case(
+            ball_xy=(0.99, 0.99),
+            id="outside-top-left-corner",
+        ),
+        _raise_if_out_of_field_invalid_case(
+            ball_xy=(99.01, 49.01),
+            id="outside-bottom-right-corner",
+        ),
+    ),
+)
+def test_raise_if_out_of_field_raises(ball_xy: tuple[float, float]) -> None:
+    with pytest.raises(BallOutOfFieldError):
+        raise_if_out_of_field(
+            ball_xy=ball_xy,
+            ball_radius=1,
+            field_wh=(100, 50),
+        )

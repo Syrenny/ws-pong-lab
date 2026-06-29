@@ -4,6 +4,8 @@ from math import cos, hypot, inf, isclose, radians, sin
 
 from ws_pong_lab.domain.models import Direction
 
+from .errors import BallOutOfFieldError
+
 
 @dataclass(frozen=True)
 class Collision:
@@ -17,6 +19,7 @@ class WallSide(StrEnum):
     TOP = "top"
     RIGHT = "right"
     BOTTOM = "bottom"
+
 
 
 @dataclass(frozen=True)
@@ -330,3 +333,33 @@ def calculate_ball_speed_after_horizontal_wall_collision(
     ball_vx_vy: tuple[float, float],
 ) -> tuple[float, float]:
     return ball_vx_vy[0], -ball_vx_vy[1]
+
+
+def raise_if_out_of_field(
+    ball_xy: tuple[float, float], ball_radius: int, field_wh: tuple[int, int]
+) -> None:
+    if not (ball_radius <= ball_xy[0] <= field_wh[0] - ball_radius) or not (
+        ball_radius <= ball_xy[1] <= field_wh[1] - ball_radius
+    ):
+        raise BallOutOfFieldError(
+            ball_xy=ball_xy, ball_radius=ball_radius, field_wh=field_wh
+        )
+
+
+def calculate_ball_motion_without_collision(
+    ball_xy: tuple[float, float],
+    ball_vx_vy: tuple[float, float],
+    field_wh: tuple[int, int],
+    ball_radius: int,
+    delta_time: float,
+) -> BallMotion:
+    updated_ball_xy = (
+        ball_xy[0] + ball_vx_vy[0] * delta_time,
+        ball_xy[1] + ball_vx_vy[1] * delta_time,
+    )
+
+    raise_if_out_of_field(
+        ball_xy=updated_ball_xy, ball_radius=ball_radius, field_wh=field_wh
+    )
+
+    return BallMotion(ball_xy=updated_ball_xy, ball_vx_vy=ball_vx_vy)
