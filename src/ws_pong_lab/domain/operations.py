@@ -21,7 +21,7 @@ def require_states(*allowed: GameStateId):
 
 
 @require_states(GameStateId.IN_PROGRESS)
-def tick_game(game: Game, delta_time: float) -> Game:
+def advance_game(game: Game, delta_time: float) -> Game:
     return simulate_tick(game=game, delta_time=delta_time)
 
 

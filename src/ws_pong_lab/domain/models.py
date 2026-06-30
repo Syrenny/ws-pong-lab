@@ -56,15 +56,8 @@ class Game(BaseModel):
     id: UUID
     state: GameStateId
     field: GameField
-    score: dict[PlayerSide, int] = Field(
-        default_factory=lambda: {PlayerSide.LEFT: 0, PlayerSide.RIGHT: 0}
-    )
-    sides: dict[PlayerSide, PlayerId | None] = Field(
-        default_factory=lambda: {
-            PlayerSide.LEFT: None,
-            PlayerSide.RIGHT: None,
-        }
-    )
+    score: dict[PlayerSide, int]
+    sides: dict[PlayerSide, PlayerId | None]
     spectators: list[PlayerId]
 
     rules: GameRules

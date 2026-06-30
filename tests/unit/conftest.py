@@ -2,6 +2,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from fakes import FakeGameRepo
 
 from ws_pong_lab.domain.models import (
     Ball,
@@ -50,3 +51,13 @@ def storage_dir() -> Path:
 @pytest.fixture
 def game_repo(storage_dir):
     return GameRepo(storage_dir=storage_dir)
+
+
+@pytest.fixture
+def fake_game_repo(default_game):
+    return FakeGameRepo(game=default_game)
+
+
+@pytest.fixture
+def fake_empty_game_repo():
+    return FakeGameRepo(game=None)

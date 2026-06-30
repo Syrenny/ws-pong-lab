@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Protocol
 from uuid import UUID
 
 import aiofiles
@@ -34,19 +35,27 @@ async def _adelete(path: Path) -> None:
         return
 
 
-class GameRepo:
+class GameRepoProtocol(Protocol):
+    async def create_or_update(self, game: Game) -> Game: ...
+
+    async def get_by_id(self, game_id: UUID) -> Game | None: ...
+
+    async def delete_by_id(self, game_id: UUID) -> None: ...
+
+
+class GameRepo(GameRepoProtocol):
     def __init__(self, storage_dir: Path) -> None:
         self.storage_dir = storage_dir
 
     def _get_game_path(self, game_id: UUID) -> Path:
         return self.storage_dir / str(game_id) / "game.json"
 
-    async def create_or_update(self, game_state: Game) -> Game:
-        path = self._get_game_path(game_state.id)
+    async def create_or_update(self, game: Game) -> Game:
+        path = self._get_game_path(game.id)
 
-        await _asave_model(path, game_state)
+        await _asave_model(path, game)
 
-        return game_state
+        return game
 
     async def get_by_id(self, game_id: UUID) -> Game | None:
         path = self._get_game_path(game_id)

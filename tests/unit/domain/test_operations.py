@@ -1,8 +1,13 @@
 import pytest
 
-from ws_pong_lab.domain.commands import move_paddle, start_game, tick_game, reset_game
 from ws_pong_lab.domain.errors import GameCommandNotAllowedError
 from ws_pong_lab.domain.models import Direction, GameStateId, PlayerSide
+from ws_pong_lab.domain.operations import (
+    advance_game,
+    move_paddle,
+    reset_game,
+    start_game,
+)
 
 
 def __invalid_state_case(game_state: GameStateId, raises: type[Exception], id: str):
@@ -24,13 +29,13 @@ def __invalid_state_case(game_state: GameStateId, raises: type[Exception], id: s
         ),
     ),
 )
-def test_tick_game_invalid_state(
+def test_advance_game_invalid_state(
     game_state: GameStateId, raises: type[Exception], default_game
 ):
     default_game.state = game_state
 
     with pytest.raises(raises):
-        tick_game(default_game, delta_time=default_game.rules.target_delta_time)
+        advance_game(default_game, delta_time=default_game.rules.target_delta_time)
 
 
 @pytest.mark.parametrize(
@@ -93,9 +98,9 @@ def test_move_paddle_moves_paddle(default_game):
     assert updated.field.paddles[PlayerSide.LEFT].y == 20
 
 
-def test_tick_game_not_raises_in_progress_state(default_game):
+def test_advance_game_not_raises_in_progress_state(default_game):
     default_game.state = GameStateId.IN_PROGRESS
-    tick_game(default_game, default_game.rules.target_delta_time)
+    advance_game(default_game, default_game.rules.target_delta_time)
 
 
 def test_start_game_transfers_to_in_progress_state(default_game):
@@ -105,9 +110,10 @@ def test_start_game_transfers_to_in_progress_state(default_game):
 
     assert updated.state is GameStateId.IN_PROGRESS
 
-def test_reset_game_transfers_to_waiting_state(default_game)
+
+def test_reset_game_transfers_to_waiting_state(default_game):
     default_game.state = GameStateId.FINISHED
-    
+
     updated = reset_game(game=default_game)
-    
+
     assert updated.state is GameStateId.WAITING
